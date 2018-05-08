@@ -3,7 +3,7 @@ package com.hoommus.gyrosnake.entities;
 /**
  * x and y represent position in matrix, not physical
  */
-public class SnakeSegment {
+public class SnakeSegment implements MapEntity {
     private int x;
     private int y;
 
