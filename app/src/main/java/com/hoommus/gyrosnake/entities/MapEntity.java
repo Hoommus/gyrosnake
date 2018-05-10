@@ -1,6 +1,8 @@
 package com.hoommus.gyrosnake.entities;
 
-public interface MapEntity {
-    int getX();
-    int getY();
+public enum MapEntity {
+    EMPTY,
+	FOOD,
+    OBSTACLE,
+    SNAKE;
 }
