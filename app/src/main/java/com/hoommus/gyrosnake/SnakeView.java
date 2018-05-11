@@ -1,11 +1,14 @@
 package com.hoommus.gyrosnake;
 
+import android.app.Activity;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Handler;
 import android.os.Looper;
+import android.os.Message;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.SurfaceHolder;
@@ -21,13 +24,16 @@ import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
- * SurfaceView to make drawing life easier
+ * SurfaceView to make drawing life easier 🌚
  */
 
 public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Callback {
+	private UpdateUIHandler handler;
+	private Thread gameThread;
+	private Thread graphicsThread;
+
     private Context context;
 
     private Direction snakeDir = Direction.DOWN;
@@ -59,7 +65,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	private ScheduledFuture snakeFuture;
 
 	private LinkedList<SnakeSegment> snakeSegments;
-    private volatile boolean isPlaying;
+    private volatile boolean isPlaying = false;
+    private volatile boolean isDrawing = true;
 
     private Paint fieldPaint;
     private Paint snakeBodyPaint;
@@ -142,7 +149,6 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
             return v.performClick();
         });
 
-
         snakeDir = Direction.DOWN;
 
         snakeSegments = new LinkedList<>();
@@ -155,7 +161,11 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 		executor = new ScheduledThreadPoolExecutor(10);
 	}
 
-    private void createMap(int width, int height) {
+	public void setHandler(UpdateUIHandler handler) {
+    	this.handler = handler;
+	}
+
+	private void createMap(int width, int height) {
     	if (width < 5)
     		width = 5;
     	if (height < 5)
@@ -163,14 +173,14 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
         matrix = new MapEntity[height][width];
         for (MapEntity[] line : matrix)
         	Arrays.fill(line, MapEntity.EMPTY);
-        int actualMapHeight = (matrix.length    + 2) * blockSize;
-        int actualMapWidth  = (matrix[0].length + 2) * blockSize;
+        int actualMapHeight = (matrix.length    ) * blockSize;
+        int actualMapWidth  = (matrix[0].length ) * blockSize;
 
         while (actualMapHeight > this.getHeight() - screenDensity / 12 || actualMapWidth > this.getWidth() - screenDensity / 12)
         {
             blockSize--;
-            actualMapHeight = (matrix.length    + 2) * blockSize;
-            actualMapWidth  = (matrix[0].length + 2) * blockSize;
+            actualMapHeight = (matrix.length    ) * blockSize;
+            actualMapWidth  = (matrix[0].length ) * blockSize;
         }
 
         hPadding = (this.getWidth() - actualMapWidth) / 2;
@@ -178,20 +188,48 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
         spawnFood();
     }
 
-    @Override
-    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        super.onLayout(changed, left, top, right, bottom);
-        createMap(10, 20);
-        this.getHolder().addCallback(this);
-    }
-
     /**
      * Game itself
      */
     @Override
     public void run() {
-        moveSnake();
+		while (true) {
+			try {
+				if (isPlaying) {
+					moveSnake();
+					Thread.sleep(gamePace);
+				} else {
+					synchronized (this) {
+						wait();
+					}
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+
+		}
     }
+
+    public void drawScene() {
+		while (true) {
+			try {
+				if (isDrawing) {
+					updateView(holder);
+					try {
+						Thread.sleep(1000 / FPS);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				} else {
+					synchronized (this) {
+						wait();
+					}
+				}
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	}
 
 	/**
 	 * Gets next head coordinates depending on direction and checks block there.
@@ -218,7 +256,11 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 			switch (whatsAhead(nextX, nextY)) {
 				case FOOD:
 					snakeSegments.add(new SnakeSegment(nextX, nextY));
+					matrix[nextY][nextX] = MapEntity.EMPTY;
 					spawnFood();
+					score++;
+					this.post(() -> Toast.makeText(this.getContext(),
+							"Food eaten. Score: " + score, Toast.LENGTH_LONG).show());
 					break;
 				case EMPTY:
 					tail.setX(nextX);
@@ -229,7 +271,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 				case OBSTACLE:
 				case SNAKE:
 				default:
-					//Toast.makeText(this.getContext(), "Game Over: " + nextY + ", " + nextX, Toast.LENGTH_LONG).show();
+					endGame();
 					break;
             }
 		} catch (Throwable t) {
@@ -239,14 +281,12 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     private void spawnFood() {
 		Random random = new Random();
-		int x = random.nextInt(matrix[0].length);
-		int y = random.nextInt(matrix.length);
-
-		matrix[y][x] = MapEntity.FOOD;
+		matrix[random.nextInt(matrix.length)][random.nextInt(matrix[0].length)] = MapEntity.FOOD;
 	}
 
     private void endGame() {
-
+		this.post(() -> Toast.makeText(this.getContext(),
+				"Game over.", Toast.LENGTH_LONG).show());
 	}
 
     private void updateView(SurfaceHolder holder)
@@ -256,21 +296,31 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 			drawMap(canvas);
 			drawSnake(canvas);
 			drawOverlay(canvas);
-
 		} catch (Throwable t) {
     		t.printStackTrace();
-		}
-		finally {
-    		if (canvas != null)
+		} finally {
+    		if (canvas != null )
 				holder.unlockCanvasAndPost(canvas);
 		}
-    }
+	}
 
     private void drawMap(Canvas canvas) {
 		if (map == null)
 			map = new Rect(hPadding, vPadding, this.getWidth() - hPadding, this.getHeight() - vPadding);
 		canvas.drawColor(Color.DKGRAY);
         canvas.drawRect(map, fieldPaint);
+		for (int i = 0; i < matrix.length; i++) {
+			for (int j = 0; j < matrix[i].length; j++) {
+				if (matrix[i][j] == MapEntity.FOOD) {
+					int xTop = hPadding + j * blockSize;
+					int yTop = vPadding + i * blockSize;
+					int xBot = xTop + blockSize;
+					int yBot = yTop + blockSize;
+					canvas.drawRect(xTop, yTop, xBot, yBot, snakeBodyPaint);
+					canvas.drawRect(xTop, yTop, xBot, yBot, snakeStrokePaint);
+				}
+			}
+		}
     }
 
     private void drawSnake(Canvas canvas) {
@@ -312,47 +362,73 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
             this.snakeDir = d;
     }
 
+	@Override
+	protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+		super.onLayout(changed, left, top, right, bottom);
+		createMap(30, 30);
+		this.getHolder().addCallback(this);
+		isPlaying = true;
+	}
+
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        updateView(holder);
+        //updateView(holder);
         this.holder = holder;
+        if (graphicsThread == null) {
+			graphicsThread = new Thread(this::drawScene);
+			graphicsThread.setDaemon(true);
+			graphicsThread.start();
+		}
+        if (gameThread == null) {
+			gameThread = new Thread(this::run);
+			gameThread.setDaemon(true);
+			gameThread.start();
+		}
+		isDrawing = true;
         resumeDrawing();
-        resumeGame();
+		resumeGame();
 	}
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-
+		updateView(holder);
     }
 
     @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-
-    }
+    public void surfaceDestroyed(SurfaceHolder holder) { }
 
     public void pauseDrawing() {
-		if (drawingFuture != null)
-			drawingFuture.cancel(false);
-
+//		if (drawingFuture != null)
+//			drawingFuture.cancel(false);
+		isDrawing = false;
 	}
 
-	public void resumeDrawing() {
-		drawingFuture = executor.scheduleAtFixedRate(() -> updateView(holder), 1, 1000 / FPS, TimeUnit.MILLISECONDS);
+	public synchronized void resumeDrawing() {
+		if (graphicsThread != null && graphicsThread.getState() == Thread.State.WAITING)
+			//synchronized (this) {
+				notifyAll();
+			//}
+		isDrawing = true;
+		//drawingFuture = executor.scheduleAtFixedRate(() -> updateView(holder), 1, 1000 / FPS, TimeUnit.MILLISECONDS);
 	}
 
 	public void pauseGame() {
-		if (snakeFuture != null)
-			snakeFuture.cancel(true);
+//		if (snakeFuture != null)
+//			snakeFuture.cancel(true);
+		isPlaying = false;
 	}
 
-	public void resumeGame() {
-		snakeFuture = executor.scheduleAtFixedRate(this::moveSnake, 2000, gamePace, TimeUnit.MILLISECONDS);
+	public synchronized void resumeGame() {
+		if (gameThread != null && gameThread.getState() == Thread.State.WAITING)
+			//synchronized (this) {
+				notifyAll();
+			//}
+		isPlaying = true;
+		//snakeFuture = executor.scheduleAtFixedRate(this::moveSnake, 2000, gamePace, TimeUnit.MILLISECONDS);
 	}
 
     @Override
     public boolean performClick() {
         return super.performClick();
     }
-
-
 }

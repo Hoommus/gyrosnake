@@ -1,5 +1,6 @@
 package com.hoommus.gyrosnake;
 
+import android.os.Looper;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -11,14 +12,17 @@ import android.view.View;
 public class MainActivity extends AppCompatActivity {
     private View mControlsView;
     private SnakeView surfaceView;
+    private UpdateUIHandler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_main);
 
+        handler = new UpdateUIHandler(Looper.getMainLooper());
+
         surfaceView = findViewById(R.id.game_area);
+        surfaceView.setHandler(handler);
         mControlsView = findViewById(R.id.fullscreen_content_controls);
 
         // Set up the user interaction to manually show or hide the system UI.
@@ -30,31 +34,35 @@ public class MainActivity extends AppCompatActivity {
         //findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
     }
 
+
+
     @Override
     protected void onPause() {
-        surfaceView.pauseDrawing();
+		super.onPause();
+		surfaceView.pauseDrawing();
 		surfaceView.pauseGame();
-        super.onPause();
     }
 
-//    @Override
-//    protected void onStop() {
-//    	surfaceView.pauseGame();
-//        surfaceView.pauseDrawing();
-//        super.onStop();
-//    }
+    @Override
+    protected void onStop() {
+		super.onStop();
+		surfaceView.pauseGame();
+        surfaceView.pauseDrawing();
+    }
 
-//    @Override
-//    protected void onStart() {
-//        surfaceView.resumeDrawing();
-//        super.onStart();
-//    }
+    @Override
+    protected void onStart() {
+		super.onStart();
+		surfaceView.resumeGame();
+		surfaceView.resumeDrawing();
+
+    }
 
     @Override
     protected void onResume() {
-
+		super.onResume();
         surfaceView.resumeGame();
         surfaceView.resumeDrawing();
-        super.onResume();
+
     }
 }
