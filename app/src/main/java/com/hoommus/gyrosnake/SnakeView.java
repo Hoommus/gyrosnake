@@ -1,13 +1,11 @@
 package com.hoommus.gyrosnake;
 
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
@@ -30,7 +28,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
  */
 
 public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Callback {
-	private UpdateUIHandler handler;
+	private Handler mainUiHandler;
 	private Thread gameThread;
 	private Thread graphicsThread;
 
@@ -38,7 +36,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     private Direction snakeDir = Direction.DOWN;
     // Controls snake movement speed int seconds.
-    private int gamePace = 500;
+    private int gamePace = 250;
 
     // Pixel measurements
     private int vPadding = 48;
@@ -159,10 +157,11 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
         snakeSegments.add(new SnakeSegment(6, 8));
 
 		executor = new ScheduledThreadPoolExecutor(10);
+
 	}
 
-	public void setHandler(UpdateUIHandler handler) {
-    	this.handler = handler;
+	public void setMainUiHandler(Handler mainUiHandler) {
+    	this.mainUiHandler = mainUiHandler;
 	}
 
 	private void createMap(int width, int height) {
@@ -211,6 +210,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     }
 
     public void drawScene() {
+		//mainUiHandler = new UpdateUIHandler(Looper.getMainLooper());
 		while (true) {
 			try {
 				if (isDrawing) {
@@ -259,8 +259,12 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					matrix[nextY][nextX] = MapEntity.EMPTY;
 					spawnFood();
 					score++;
-					this.post(() -> Toast.makeText(this.getContext(),
-							"Food eaten. Score: " + score, Toast.LENGTH_LONG).show());
+					Message msg = mainUiHandler.obtainMessage(UpdateUIHandler.TOAST);
+					msg.obj = "Food eaten.";
+					mainUiHandler.sendMessage(msg);
+					msg = mainUiHandler.obtainMessage(UpdateUIHandler.TEXT);
+					msg.obj = score;
+					mainUiHandler.sendMessage(msg);
 					break;
 				case EMPTY:
 					tail.setX(nextX);
@@ -398,33 +402,23 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     public void surfaceDestroyed(SurfaceHolder holder) { }
 
     public void pauseDrawing() {
-//		if (drawingFuture != null)
-//			drawingFuture.cancel(false);
 		isDrawing = false;
 	}
 
 	public synchronized void resumeDrawing() {
 		if (graphicsThread != null && graphicsThread.getState() == Thread.State.WAITING)
-			//synchronized (this) {
-				notifyAll();
-			//}
+			notifyAll();
 		isDrawing = true;
-		//drawingFuture = executor.scheduleAtFixedRate(() -> updateView(holder), 1, 1000 / FPS, TimeUnit.MILLISECONDS);
 	}
 
 	public void pauseGame() {
-//		if (snakeFuture != null)
-//			snakeFuture.cancel(true);
 		isPlaying = false;
 	}
 
 	public synchronized void resumeGame() {
 		if (gameThread != null && gameThread.getState() == Thread.State.WAITING)
-			//synchronized (this) {
-				notifyAll();
-			//}
+			notifyAll();
 		isPlaying = true;
-		//snakeFuture = executor.scheduleAtFixedRate(this::moveSnake, 2000, gamePace, TimeUnit.MILLISECONDS);
 	}
 
     @Override

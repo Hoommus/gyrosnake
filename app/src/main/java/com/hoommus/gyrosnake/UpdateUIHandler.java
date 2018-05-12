@@ -3,6 +3,7 @@ package com.hoommus.gyrosnake;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.widget.TextView;
 import android.widget.Toast;
 
 
@@ -26,17 +27,19 @@ public class UpdateUIHandler extends Handler {
 		super(looper, callback);
 	}
 
+	public void setScoreView(TextView scoreView) {
+		//this.scoreView = scoreView;
+	}
+
 	@Override
 	public void handleMessage(Message msg) {
-		Looper.prepare();
 		switch (msg.what) {
 			case TOAST:
-				this.post(() -> ((Toast) msg.obj).show());
+				//Toast.makeText(scoreView.getContext(), (String) msg.obj, Toast.LENGTH_LONG).show();
 				break;
 			case TEXT:
-
+				//scoreView.setText((String) msg.obj);
 				break;
 		}
-		Looper.loop();
 	}
 }
