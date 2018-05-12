@@ -5,13 +5,13 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.widget.Toast;
 
 import com.hoommus.gyrosnake.entities.MapEntity;
 import com.hoommus.gyrosnake.entities.SnakeSegment;
@@ -19,9 +19,6 @@ import com.hoommus.gyrosnake.entities.SnakeSegment;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Random;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * SurfaceView to make drawing life easier 🌚
@@ -36,7 +33,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     private Direction snakeDir = Direction.DOWN;
     // Controls snake movement speed int seconds.
-    private int gamePace = 250;
+    private int gamePace = 400;
 
     // Pixel measurements
     private int vPadding = 48;
@@ -55,12 +52,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     // We will draw the frame much more often
 
     // How many points does the player have
-    private int score;
-
-    // Thread management
-    private ScheduledExecutorService executor;
-	private ScheduledFuture drawingFuture;
-	private ScheduledFuture snakeFuture;
+    private Integer score;
 
 	private LinkedList<SnakeSegment> snakeSegments;
     private volatile boolean isPlaying = false;
@@ -72,6 +64,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     private Paint obstaclePaint;
     private Paint overlayPaint;
     private Paint overlayStrokePaint;
+    private Paint foodPaint;
 
     private SurfaceHolder holder;
 
@@ -98,35 +91,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     }
 
     private void initAuxilia() {
-        DisplayMetrics metrics = getResources().getDisplayMetrics();
-        screenDensity = metrics.densityDpi;
-        blockSize = screenDensity / 6;
-		hPadding = blockSize;
-		vPadding = blockSize;
-        controlPadding = screenDensity;
-        fieldPaint         = new Paint(Paint.ANTI_ALIAS_FLAG);
-        snakeBodyPaint     = new Paint(Paint.ANTI_ALIAS_FLAG);
-        snakeStrokePaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
-        obstaclePaint      = new Paint(Paint.ANTI_ALIAS_FLAG);
-        overlayPaint       = new Paint(Paint.DITHER_FLAG);
-        overlayStrokePaint = new Paint(Paint.DITHER_FLAG);
-
-        overlayStrokePaint.setColor(getResources().getColor(R.color.colorPrimaryDark));
-        overlayStrokePaint.setStyle(Paint.Style.STROKE);
-        overlayStrokePaint.setAlpha(60);
-        overlayStrokePaint.setStrokeCap(Paint.Cap.SQUARE);
-        overlayPaint.setColor(getResources().getColor(R.color.colorPrimaryDark));
-		overlayPaint.setAlpha(50);
-        fieldPaint.setColor(Color.LTGRAY);
-        snakeBodyPaint.setColor(getResources().getColor(R.color.colorSnake));
-        snakeBodyPaint.setStyle(Paint.Style.FILL);
-        snakeStrokePaint.setStyle(Paint.Style.STROKE);
-        snakeStrokePaint.setColor(getResources().getColor(R.color.colorSnakeStroke));
-        snakeStrokePaint.setStrokeWidth(4);
-        snakeStrokePaint.setStrokeCap(Paint.Cap.BUTT);
-        snakeStrokePaint.setStrokeJoin(Paint.Join.MITER);
-        snakeStrokePaint.setStrokeMiter(4);
-        obstaclePaint.setColor(Color.BLACK);
+        initPaint();
 
         this.setOnTouchListener((v, event) -> {
             final float x = event.getX();
@@ -147,28 +112,69 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
             return v.performClick();
         });
 
-        snakeDir = Direction.DOWN;
-
-        snakeSegments = new LinkedList<>();
-        snakeSegments.add(new SnakeSegment(5, 5));
-        snakeSegments.add(new SnakeSegment(6, 5));
-        snakeSegments.add(new SnakeSegment(6, 6));
-        snakeSegments.add(new SnakeSegment(6, 7));
-        snakeSegments.add(new SnakeSegment(6, 8));
-
-		executor = new ScheduledThreadPoolExecutor(10);
-
+        //startNewGame(null);
 	}
 
 	public void setMainUiHandler(Handler mainUiHandler) {
     	this.mainUiHandler = mainUiHandler;
 	}
 
+	private void initPaint() {
+		fieldPaint         = new Paint(Paint.ANTI_ALIAS_FLAG);
+		snakeBodyPaint     = new Paint(Paint.ANTI_ALIAS_FLAG);
+		snakeStrokePaint   = new Paint(Paint.ANTI_ALIAS_FLAG);
+		obstaclePaint      = new Paint(Paint.ANTI_ALIAS_FLAG);
+		overlayPaint       = new Paint(Paint.DITHER_FLAG);
+		overlayStrokePaint = new Paint(Paint.DITHER_FLAG);
+		foodPaint          = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+		overlayStrokePaint.setColor(getResources().getColor(R.color.colorPrimaryDark));
+		overlayStrokePaint.setStyle(Paint.Style.STROKE);
+		overlayStrokePaint.setAlpha(60);
+		overlayStrokePaint.setStrokeCap(Paint.Cap.SQUARE);
+		overlayPaint.setColor(getResources().getColor(R.color.colorPrimaryDark));
+		overlayPaint.setAlpha(50);
+		fieldPaint.setColor(Color.LTGRAY);
+		foodPaint.setColor(Color.YELLOW);
+		snakeBodyPaint.setColor(getResources().getColor(R.color.colorSnake));
+		snakeBodyPaint.setStyle(Paint.Style.FILL);
+		snakeStrokePaint.setStyle(Paint.Style.STROKE);
+		snakeStrokePaint.setColor(getResources().getColor(R.color.colorSnakeStroke));
+		snakeStrokePaint.setStrokeWidth(4);
+		snakeStrokePaint.setStrokeCap(Paint.Cap.BUTT);
+		snakeStrokePaint.setStrokeJoin(Paint.Join.MITER);
+		snakeStrokePaint.setStrokeMiter(4);
+		obstaclePaint.setColor(Color.BLACK);
+	}
+
+	private void createSnake() {
+    	int mapCenterX = matrix[0].length / 2;
+    	int mapCenterY = matrix.length / 2;
+
+		snakeDir = Direction.DOWN;
+
+		snakeSegments = new LinkedList<>();
+		snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY - 1));
+		snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY));
+		snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY + 1));
+		Message msg = mainUiHandler.obtainMessage(MessageStatus.TOAST);
+		msg.obj = "Snake head at (" + snakeSegments.getLast().getX() + ", " + snakeSegments.getLast().getY() + ")";
+		mainUiHandler.sendMessage(msg);
+	}
+
 	private void createMap(int width, int height) {
+		DisplayMetrics metrics = getResources().getDisplayMetrics();
+		screenDensity = metrics.densityDpi;
+		blockSize = screenDensity / 6;
+		hPadding = blockSize;
+		vPadding = blockSize;
+		controlPadding = screenDensity;
+
     	if (width < 5)
     		width = 5;
     	if (height < 5)
     		height = 5;
+
         matrix = new MapEntity[height][width];
         for (MapEntity[] line : matrix)
         	Arrays.fill(line, MapEntity.EMPTY);
@@ -184,8 +190,33 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
         hPadding = (this.getWidth() - actualMapWidth) / 2;
         vPadding = (this.getHeight() - actualMapHeight) / 2;
-        spawnFood();
     }
+
+    public void startNewGame(Bundle args) {
+    	score = 0;
+
+//    	if (args != null) {
+//			createMap(args.getInt("mapwidth"), args.getInt("mapheight"));
+//		} else
+//			createMap(matrix[0].length, matrix.length);
+    	spawnFood();
+		createSnake();
+
+		isDrawing = true;
+		isPlaying = true;
+		if (graphicsThread == null) {
+			graphicsThread = new Thread(this::drawScene);
+			graphicsThread.setDaemon(true);
+			graphicsThread.start();
+		}
+		if (gameThread == null) {
+			gameThread = new Thread(this::run);
+			gameThread.start();
+		}
+
+    	//resumeDrawing();
+    	//resumeGame();
+	}
 
     /**
      * Game itself
@@ -210,7 +241,6 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     }
 
     public void drawScene() {
-		//mainUiHandler = new UpdateUIHandler(Looper.getMainLooper());
 		while (true) {
 			try {
 				if (isDrawing) {
@@ -253,16 +283,18 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 			int nextX = head.getX() + (snakeDir == Direction.LEFT ? -1 : 0) + (snakeDir == Direction.RIGHT ? 1 : 0);
 			int nextY = head.getY() + (snakeDir == Direction.UP ? -1 : 0) + (snakeDir == Direction.DOWN ? 1 : 0);
 
+			Message msg;
+
 			switch (whatsAhead(nextX, nextY)) {
 				case FOOD:
 					snakeSegments.add(new SnakeSegment(nextX, nextY));
 					matrix[nextY][nextX] = MapEntity.EMPTY;
 					spawnFood();
 					score++;
-					Message msg = mainUiHandler.obtainMessage(UpdateUIHandler.TOAST);
+					msg = mainUiHandler.obtainMessage(MessageStatus.TOAST);
 					msg.obj = "Food eaten.";
 					mainUiHandler.sendMessage(msg);
-					msg = mainUiHandler.obtainMessage(UpdateUIHandler.TEXT);
+					msg = mainUiHandler.obtainMessage(MessageStatus.SCORE);
 					msg.obj = score;
 					mainUiHandler.sendMessage(msg);
 					break;
@@ -275,7 +307,10 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 				case OBSTACLE:
 				case SNAKE:
 				default:
-					endGame();
+					msg = mainUiHandler.obtainMessage(MessageStatus.GAME_OVER);
+					msg.obj = score;
+					msg.arg1 = score;
+					mainUiHandler.sendMessage(msg);
 					break;
             }
 		} catch (Throwable t) {
@@ -288,13 +323,10 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 		matrix[random.nextInt(matrix.length)][random.nextInt(matrix[0].length)] = MapEntity.FOOD;
 	}
 
-    private void endGame() {
-		this.post(() -> Toast.makeText(this.getContext(),
-				"Game over.", Toast.LENGTH_LONG).show());
-	}
-
     private void updateView(SurfaceHolder holder)
     {
+    	if (holder == null)
+    		return;
 		Canvas canvas = holder.lockCanvas();
     	try {
 			drawMap(canvas);
@@ -320,7 +352,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					int yTop = vPadding + i * blockSize;
 					int xBot = xTop + blockSize;
 					int yBot = yTop + blockSize;
-					canvas.drawRect(xTop, yTop, xBot, yBot, snakeBodyPaint);
+					canvas.drawRect(xTop, yTop, xBot, yBot, foodPaint);
 					canvas.drawRect(xTop, yTop, xBot, yBot, snakeStrokePaint);
 				}
 			}
@@ -369,33 +401,18 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	@Override
 	protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
 		super.onLayout(changed, left, top, right, bottom);
-		createMap(30, 30);
+		createMap(20, 20);
 		this.getHolder().addCallback(this);
-		isPlaying = true;
 	}
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {
-        //updateView(holder);
         this.holder = holder;
-        if (graphicsThread == null) {
-			graphicsThread = new Thread(this::drawScene);
-			graphicsThread.setDaemon(true);
-			graphicsThread.start();
-		}
-        if (gameThread == null) {
-			gameThread = new Thread(this::run);
-			gameThread.setDaemon(true);
-			gameThread.start();
-		}
-		isDrawing = true;
-        resumeDrawing();
-		resumeGame();
 	}
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-		updateView(holder);
+		this.holder = holder;
     }
 
     @Override
@@ -418,6 +435,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	public synchronized void resumeGame() {
 		if (gameThread != null && gameThread.getState() == Thread.State.WAITING)
 			notifyAll();
+		else if (gameThread != null && gameThread.getState() == Thread.State.NEW)
+			gameThread.start();
 		isPlaying = true;
 	}
 

@@ -1,7 +1,9 @@
 package com.hoommus.gyrosnake;
 
+import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Message;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
@@ -17,10 +19,8 @@ public class MainActivity extends AppCompatActivity {
     private SnakeView surfaceView;
     private static Handler handler;
 
-	public static final int TOAST = 1;
-	public static final int TEXT = 2;
-
-    @Override
+    @SuppressLint("HandlerLeak")
+	@Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -29,29 +29,38 @@ public class MainActivity extends AppCompatActivity {
 			@Override
 			public void handleMessage(Message msg) {
 				switch (msg.what) {
-					case TOAST:
+					case MessageStatus.TOAST:
 						Toast.makeText(findViewById(R.id.score).getContext(), (String) msg.obj, Toast.LENGTH_SHORT).show();
 						break;
-					case TEXT:
+					case MessageStatus.SCORE:
 						((TextView) findViewById(R.id.score)).setText("Score: " + msg.obj);
+						break;
+					case MessageStatus.PAUSE:
+
+						break;
+					case MessageStatus.GAME_OVER:
+						buildGameOverDialog(msg.arg1);
 						break;
 				}
 			}
 		};
-        //handler.setScoreView(findViewById(R.id.score));
         surfaceView = findViewById(R.id.game_area);
         surfaceView.setMainUiHandler(handler);
+        Bundle args = new Bundle();
+        args.putInt("mapwidth", 10);
+        args.putInt("mapheight", 10);
+        surfaceView.startNewGame(args);
         mControlsView = findViewById(R.id.fullscreen_content_controls);
-
-        // Set up the user interaction to manually show or hide the system UI.
-
-
-        // Upon interacting with UI controls, delay any scheduled hide()
-        // operations to prevent the jarring behavior of controls going away
-        // while interacting with the UI.
-        //findViewById(R.id.dummy_button).setOnTouchListener(mDelayHideTouchListener);
     }
 
+	private void buildGameOverDialog(int score) {
+		GameOverDialogFragment dialog = new GameOverDialogFragment();
+		surfaceView.pauseGame();
+		Bundle bundle = new Bundle();
+		bundle.putInt("score", score);
+		dialog.setArguments(bundle);
+		dialog.show(getSupportFragmentManager(), "game over");
+	}
 
 
     @Override
