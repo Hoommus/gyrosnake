@@ -17,7 +17,9 @@ import com.hoommus.gyrosnake.entities.MapEntity;
 import com.hoommus.gyrosnake.entities.SnakeSegment;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -29,19 +31,15 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	private Thread gameThread;
 	private Thread graphicsThread;
 
-    private Context context;
-
     private Direction snakeDir = Direction.DOWN;
     // Controls snake movement speed int seconds.
-    private int gamePace = 400;
+    // Yeah, I know it's final at the moment
+    private final int gamePace = 400;
 
-    // Pixel measurements
     private int vPadding = 48;
     private int hPadding;
 	private float controlPadding;
 
-    // How long is the snake
-    private int snakeLength;
     private int screenDensity;
     private int blockSize = 50;
     private MapEntity[][] matrix;
@@ -54,9 +52,11 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     // How many points does the player have
     private Integer score;
 
-	private LinkedList<SnakeSegment> snakeSegments;
+	private final LinkedList<SnakeSegment> snakeSegments = new LinkedList<>();
     private volatile boolean isPlaying = false;
     private volatile boolean isDrawing = true;
+
+    private float xyzPivot[] = new float[3];
 
     private Paint fieldPaint;
     private Paint snakeBodyPaint;
@@ -66,23 +66,22 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     private Paint overlayStrokePaint;
     private Paint foodPaint;
 
+    private Bundle args = new Bundle();
+
     private SurfaceHolder holder;
 
     public SnakeView(Context context) {
         super(context);
-        this.context = context;
         initAuxilia();
     }
 
     public SnakeView(Context context, AttributeSet attrs) {
         super(context, attrs);
-		this.context = context;
         initAuxilia();
     }
 
     public SnakeView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-		this.context = context;
         initAuxilia();
     }
 
@@ -92,6 +91,10 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     private void initAuxilia() {
         initPaint();
+
+        this.setOnGenericMotionListener((v, e) -> {
+            return true;
+        });
 
         this.setOnTouchListener((v, event) -> {
             final float x = event.getX();
@@ -111,8 +114,6 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
             return v.performClick();
         });
-
-        //startNewGame(null);
 	}
 
 	public void setMainUiHandler(Handler mainUiHandler) {
@@ -153,16 +154,18 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
 		snakeDir = Direction.DOWN;
 
-		snakeSegments = new LinkedList<>();
-		snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY - 1));
-		snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY));
-		snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY + 1));
+		synchronized (snakeSegments) {
+            snakeSegments.clear();
+            snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY - 1));
+            snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY));
+            snakeSegments.add(new SnakeSegment(mapCenterX, mapCenterY + 1));
+        }
 		Message msg = mainUiHandler.obtainMessage(MessageStatus.TOAST);
 		msg.obj = "Snake head at (" + snakeSegments.getLast().getX() + ", " + snakeSegments.getLast().getY() + ")";
 		mainUiHandler.sendMessage(msg);
 	}
 
-	private void createMap(int width, int height) {
+	private void createMap() {
 		DisplayMetrics metrics = getResources().getDisplayMetrics();
 		screenDensity = metrics.densityDpi;
 		blockSize = screenDensity / 6;
@@ -170,12 +173,6 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 		vPadding = blockSize;
 		controlPadding = screenDensity;
 
-    	if (width < 5)
-    		width = 5;
-    	if (height < 5)
-    		height = 5;
-
-        matrix = new MapEntity[height][width];
         for (MapEntity[] line : matrix)
         	Arrays.fill(line, MapEntity.EMPTY);
         int actualMapHeight = (matrix.length    ) * blockSize;
@@ -190,16 +187,22 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
         hPadding = (this.getWidth() - actualMapWidth) / 2;
         vPadding = (this.getHeight() - actualMapHeight) / 2;
+		spawnFood();
     }
 
     public void startNewGame(Bundle args) {
-    	score = 0;
-
-//    	if (args != null) {
-//			createMap(args.getInt("mapwidth"), args.getInt("mapheight"));
-//		} else
-//			createMap(matrix[0].length, matrix.length);
-    	spawnFood();
+    	int width = 5;
+    	int height = 5;
+    	if (args != null) {
+			height = args.getInt("mapheight");
+			width = args.getInt("mapwidth");
+		} else if (matrix != null) {
+    		height = matrix.length;
+    		width = matrix[0].length;
+		}
+		score = 0;
+    	matrix = new MapEntity[height][width];
+    	createMap();
 		createSnake();
 
 		isDrawing = true;
@@ -212,10 +215,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 		if (gameThread == null) {
 			gameThread = new Thread(this::run);
 			gameThread.start();
-		}
-
-    	//resumeDrawing();
-    	//resumeGame();
+		} else
+		    resumeGame();
 	}
 
     /**
@@ -305,8 +306,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					snakeSegments.addLast(tail);
 					break;
 				case OBSTACLE:
-				case SNAKE:
-				default:
+				//case SNAKE:
 					msg = mainUiHandler.obtainMessage(MessageStatus.GAME_OVER);
 					msg.obj = score;
 					msg.arg1 = score;
@@ -364,14 +364,17 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
         int yTop;
         int xBot;
         int yBot;
+        List<SnakeSegment> copy = Collections.unmodifiableList(snakeSegments);
 
-        for (SnakeSegment segment : snakeSegments) {
-            xTop = hPadding + segment.getX() * blockSize;
-            yTop = vPadding + segment.getY() * blockSize;
-            xBot = xTop + blockSize;
-            yBot = yTop + blockSize;
-            canvas.drawRect(xTop, yTop, xBot, yBot, snakeBodyPaint);
-            canvas.drawRect(xTop, yTop, xBot, yBot, snakeStrokePaint);
+        synchronized (snakeSegments) {
+            for (SnakeSegment segment : copy) {
+                xTop = hPadding + segment.getX() * blockSize;
+                yTop = vPadding + segment.getY() * blockSize;
+                xBot = xTop + blockSize;
+                yBot = yTop + blockSize;
+                canvas.drawRect(xTop, yTop, xBot, yBot, snakeBodyPaint);
+                canvas.drawRect(xTop, yTop, xBot, yBot, snakeStrokePaint);
+            }
         }
     }
 
@@ -401,7 +404,9 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	@Override
 	protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
 		super.onLayout(changed, left, top, right, bottom);
-		createMap(20, 20);
+        args.putInt("mapwidth", 10);
+        args.putInt("mapheight", 10);
+		startNewGame(args);
 		this.getHolder().addCallback(this);
 	}
 
@@ -412,7 +417,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-		this.holder = holder;
+		//this.holder = holder;
+		updateView(holder);
     }
 
     @Override
@@ -424,7 +430,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
 	public synchronized void resumeDrawing() {
 		if (graphicsThread != null && graphicsThread.getState() == Thread.State.WAITING)
-			notifyAll();
+			this.notify();
 		isDrawing = true;
 	}
 
@@ -434,7 +440,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
 	public synchronized void resumeGame() {
 		if (gameThread != null && gameThread.getState() == Thread.State.WAITING)
-			notifyAll();
+			this.notify();
 		else if (gameThread != null && gameThread.getState() == Thread.State.NEW)
 			gameThread.start();
 		isPlaying = true;

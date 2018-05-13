@@ -3,6 +3,8 @@ package com.hoommus.gyrosnake;
 import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Message;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -24,7 +26,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
+		Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+		surfaceView = findViewById(R.id.game_area);
         handler = new Handler() {
 			@Override
 			public void handleMessage(Message msg) {
@@ -36,20 +39,16 @@ public class MainActivity extends AppCompatActivity {
 						((TextView) findViewById(R.id.score)).setText("Score: " + msg.obj);
 						break;
 					case MessageStatus.PAUSE:
-
+						surfaceView.pauseGame();
 						break;
 					case MessageStatus.GAME_OVER:
+						vibrator.vibrate(50);
 						buildGameOverDialog(msg.arg1);
 						break;
 				}
 			}
 		};
-        surfaceView = findViewById(R.id.game_area);
-        surfaceView.setMainUiHandler(handler);
-        Bundle args = new Bundle();
-        args.putInt("mapwidth", 10);
-        args.putInt("mapheight", 10);
-        surfaceView.startNewGame(args);
+		surfaceView.setMainUiHandler(handler);
         mControlsView = findViewById(R.id.fullscreen_content_controls);
     }
 

@@ -17,6 +17,7 @@ public class GameOverDialogFragment extends DialogFragment {
 					if (getActivity() == null)
 						return;
 					SnakeView view = getActivity().findViewById(R.id.game_area);
+					view.invalidate();
 					view.startNewGame(null);
 				})
 				.setNegativeButton("Do nothing", (dialog, which) -> {
