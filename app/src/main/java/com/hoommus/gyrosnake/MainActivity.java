@@ -1,6 +1,8 @@
 package com.hoommus.gyrosnake;
 
 import android.annotation.SuppressLint;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.Message;
 import android.os.VibrationEffect;
@@ -18,6 +20,7 @@ import android.widget.Toast;
  */
 public class MainActivity extends AppCompatActivity {
     private View mControlsView;
+	private SensorManager sensorManager;
     private SnakeView surfaceView;
     private static Handler handler;
 
@@ -27,6 +30,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 		Vibrator vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+		sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+		Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
 		surfaceView = findViewById(R.id.game_area);
         handler = new Handler() {
 			@Override
@@ -49,6 +54,8 @@ public class MainActivity extends AppCompatActivity {
 			}
 		};
 		surfaceView.setMainUiHandler(handler);
+		sensorManager.registerListener(surfaceView, accelerometer, SensorManager.SENSOR_DELAY_UI);
+		sensorManager.registerListener(surfaceView, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_GAME);
         mControlsView = findViewById(R.id.fullscreen_content_controls);
     }
 

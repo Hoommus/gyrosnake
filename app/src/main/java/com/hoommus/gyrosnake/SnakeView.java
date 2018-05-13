@@ -5,6 +5,10 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -26,7 +30,7 @@ import java.util.Random;
  * SurfaceView to make drawing life easier 🌚
  */
 
-public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Callback {
+public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Callback, SensorEventListener {
 	private Handler mainUiHandler;
 	private Thread gameThread;
 	private Thread graphicsThread;
@@ -91,10 +95,6 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     private void initAuxilia() {
         initPaint();
-
-        this.setOnGenericMotionListener((v, e) -> {
-            return true;
-        });
 
         this.setOnTouchListener((v, event) -> {
             final float x = event.getX();
@@ -219,6 +219,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 		    resumeGame();
 	}
 
+
+
     /**
      * Game itself
      */
@@ -306,7 +308,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					snakeSegments.addLast(tail);
 					break;
 				case OBSTACLE:
-				//case SNAKE:
+				case SNAKE:
 					msg = mainUiHandler.obtainMessage(MessageStatus.GAME_OVER);
 					msg.obj = score;
 					msg.arg1 = score;
@@ -364,9 +366,9 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
         int yTop;
         int xBot;
         int yBot;
-        List<SnakeSegment> copy = Collections.unmodifiableList(snakeSegments);
+		synchronized (snakeSegments) {
+       		List<SnakeSegment> copy = Collections.unmodifiableList(snakeSegments);
 
-        synchronized (snakeSegments) {
             for (SnakeSegment segment : copy) {
                 xTop = hPadding + segment.getX() * blockSize;
                 yTop = vPadding + segment.getY() * blockSize;
@@ -404,8 +406,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	@Override
 	protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
 		super.onLayout(changed, left, top, right, bottom);
-        args.putInt("mapwidth", 10);
-        args.putInt("mapheight", 10);
+        args.putInt("mapwidth", 20);
+        args.putInt("mapheight", 20);
 		startNewGame(args);
 		this.getHolder().addCallback(this);
 	}
@@ -450,4 +452,45 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     public boolean performClick() {
         return super.performClick();
     }
+
+	private float gravity[];
+	private float magnetic[];
+	private float mR[] = new float[9];
+	private float mI[] = new float[9];
+	private float orientation[] = new float[3];
+
+	@Override
+	public void onSensorChanged(SensorEvent event) {
+		double pitch;
+		double yaw;
+		double roll;
+
+		if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER)
+			gravity = event.values;
+		else if (event.sensor.getType() == Sensor.TYPE_MAGNETIC_FIELD)
+			magnetic = event.values;
+
+		if (gravity != null && magnetic != null) {
+			if (SensorManager.getRotationMatrix(mR, mI, gravity, magnetic)) {
+				SensorManager.getOrientation(mR, orientation);
+				//yaw = orientation[0];
+				pitch = Math.toDegrees(orientation[1]);
+				roll = Math.toDegrees(orientation[2]);
+				if (roll > 10 && roll < 40)
+					changeDirection(Direction.RIGHT);
+				else if (roll < -10 && roll > -45)
+					changeDirection(Direction.LEFT);
+				if (pitch > 15 && pitch < 45)
+					changeDirection(Direction.UP);
+				else if (pitch < -15 && pitch > -45)
+					changeDirection(Direction.DOWN);
+			}
+		}
+
+	}
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int i) {
+
+	}
 }
