@@ -28,10 +28,11 @@
             android:orientation="horizontal">
 
             <ImageButton
+                android:id="@+id/control_button"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="@color/colorPrimary"
-                android:src="@drawable/ic_menu" />
+                android:src="@drawable/ic_pause" />
 
             <TextView
                 android:id="@+id/score"
@@ -40,16 +41,7 @@
                 android:layout_margin="8dp"
                 android:layout_weight="3"
                 android:gravity="center_vertical|start"
-                android:text="Score:"
-                android:textColor="@android:color/primary_text_dark" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:layout_margin="8dp"
-                android:layout_weight="3"
-                android:gravity="center_vertical|start"
-                android:text="Hello"
+                android:text="Score: 0"
                 android:textColor="@android:color/primary_text_dark" />
 
 

@@ -1,5 +1,9 @@
 package com.hoommus.gyrosnake;
 
+
+/**
+ * Not enum, because of switch usage in MainActivity.onCreate()
+ */
 public class MessageStatus {
 	public static final int TOAST = 1;
 	public static final int SCORE = 2;

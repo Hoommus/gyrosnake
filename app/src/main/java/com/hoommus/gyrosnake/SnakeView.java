@@ -30,7 +30,7 @@ import java.util.Random;
  * SurfaceView to make drawing life easier 🌚
  */
 
-public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Callback, SensorEventListener {
+public class SnakeView extends SurfaceView implements SurfaceHolder.Callback, SensorEventListener {
 	private Handler mainUiHandler;
 	private Thread gameThread;
 	private Thread graphicsThread;
@@ -76,45 +76,22 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 
     public SnakeView(Context context) {
         super(context);
-        initAuxilia();
+		initPaint();
     }
 
     public SnakeView(Context context, AttributeSet attrs) {
         super(context, attrs);
-        initAuxilia();
+		initPaint();
     }
 
     public SnakeView(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        initAuxilia();
+		initPaint();
     }
 
     public SnakeView(Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
         super(context, attrs, defStyleAttr, defStyleRes);
     }
-
-    private void initAuxilia() {
-        initPaint();
-
-        this.setOnTouchListener((v, event) -> {
-            final float x = event.getX();
-            final float y = event.getY();
-
-            final float width = this.getWidth();
-            final float height = this.getHeight();
-
-            if (x > width - controlPadding && y < height - controlPadding && y > controlPadding)
-            	changeDirection(Direction.RIGHT);
-            else if (x < controlPadding && y < height - controlPadding && y > controlPadding)
-            	changeDirection(Direction.LEFT);
-            else if (y < controlPadding)
-            	changeDirection(Direction.UP);
-            else if (y > height - controlPadding)
-            	changeDirection(Direction.DOWN);
-
-            return v.performClick();
-        });
-	}
 
 	public void setMainUiHandler(Handler mainUiHandler) {
     	this.mainUiHandler = mainUiHandler;
@@ -204,28 +181,23 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     	matrix = new MapEntity[height][width];
     	createMap();
 		createSnake();
-
+		updateMatrix(snakeSegments);
 		isDrawing = true;
-		isPlaying = true;
+		isPlaying = false;
 		if (graphicsThread == null) {
 			graphicsThread = new Thread(this::drawScene);
 			graphicsThread.setDaemon(true);
 			graphicsThread.start();
 		}
 		if (gameThread == null) {
-			gameThread = new Thread(this::run);
+			gameThread = new Thread(this::game);
 			gameThread.start();
 		} else
 		    resumeGame();
 	}
 
 
-
-    /**
-     * Game itself
-     */
-    @Override
-    public void run() {
+    public void game() {
 		while (true) {
 			try {
 				if (isPlaying) {
@@ -269,14 +241,13 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	 * Function exists only to incorporate that if-statement for map bounds
 	 */
     private MapEntity whatsAhead(int nextX, int nextY) {
-		if (nextY < 0 || nextY >= matrix.length || nextX < 0 || nextX >= matrix[0].length
-				|| matrix[nextY][nextX] == MapEntity.SNAKE)
+		if (nextY < 0 || nextY >= matrix.length || nextX < 0 || nextX >= matrix[0].length)
 			return MapEntity.OBSTACLE;
 		return matrix[nextY][nextX];
 	}
 
 	/**
-	 * Because of linked list usage, last element is actually snake's head. And first - it's tail
+	 * Because of moronic linked list usage, last element is actually snake's head. And first - it's tail
 	 */
 	private void moveSnake() {
 		try {
@@ -294,6 +265,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					matrix[nextY][nextX] = MapEntity.EMPTY;
 					spawnFood();
 					score++;
+					// Some debug
 					msg = mainUiHandler.obtainMessage(MessageStatus.TOAST);
 					msg.obj = "Food eaten.";
 					mainUiHandler.sendMessage(msg);
@@ -302,6 +274,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					mainUiHandler.sendMessage(msg);
 					break;
 				case EMPTY:
+					matrix[tail.getY()][tail.getX()] = MapEntity.EMPTY;
+					matrix[nextY][nextY] 			 = MapEntity.SNAKE;
 					tail.setX(nextX);
 					tail.setY(nextY);
 					snakeSegments.removeFirst();
@@ -309,24 +283,41 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					break;
 				case OBSTACLE:
 				case SNAKE:
+				default:
 					msg = mainUiHandler.obtainMessage(MessageStatus.GAME_OVER);
 					msg.obj = score;
 					msg.arg1 = score;
 					mainUiHandler.sendMessage(msg);
 					break;
             }
+            updateMatrix(snakeSegments);
 		} catch (Throwable t) {
 			t.printStackTrace();
 		}
     }
 
-    private void spawnFood() {
-		Random random = new Random();
-		matrix[random.nextInt(matrix.length)][random.nextInt(matrix[0].length)] = MapEntity.FOOD;
+    private void updateMatrix(LinkedList<SnakeSegment> updated) {
+		for (int y = 0; y < matrix.length; y++)
+			for (int x = 0; x < matrix[0].length; x++)
+				if (matrix[y][x] == MapEntity.SNAKE)
+					matrix[y][x] = MapEntity.EMPTY;
+		for (SnakeSegment segment : updated)
+			matrix[segment.getY()][segment.getX()] = MapEntity.SNAKE;
 	}
 
-    private void updateView(SurfaceHolder holder)
-    {
+    private void spawnFood() {
+		Random random = new Random();
+		while (true) {
+			int randomY = random.nextInt(matrix.length);
+			int randomX = random.nextInt(matrix[0].length);
+			if (matrix[randomY][randomX] == MapEntity.EMPTY) {
+				matrix[randomY][randomX] = MapEntity.FOOD;
+				break;
+			}
+		}
+	}
+
+    private void updateView(SurfaceHolder holder) {
     	if (holder == null)
     		return;
 		Canvas canvas = holder.lockCanvas();
@@ -366,6 +357,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
         int yTop;
         int xBot;
         int yBot;
+
 		synchronized (snakeSegments) {
        		List<SnakeSegment> copy = Collections.unmodifiableList(snakeSegments);
 
@@ -381,26 +373,38 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
     }
 
     private void drawOverlay(Canvas canvas) {
-		int width = this.getWidth();
-		int height = this.getHeight();
+		int xTop;
+		int yTop;
+		int xBot;
+		int yBot;
 
-		// top
-    	canvas.drawRect(0, 0, width, controlPadding, overlayPaint);
-    	canvas.drawRect(0, 0, width, controlPadding, overlayStrokePaint);
-    	// left
-    	canvas.drawRect(0, controlPadding, controlPadding, height - controlPadding, overlayPaint);
-    	canvas.drawRect(0, controlPadding, controlPadding, height - controlPadding, overlayStrokePaint);
-    	// right
-    	canvas.drawRect(width - controlPadding, controlPadding, width, height - controlPadding, overlayPaint);
-    	canvas.drawRect(width - controlPadding, controlPadding, width, height - controlPadding, overlayStrokePaint);
-    	// bottom
-    	canvas.drawRect(0, height - controlPadding, width, height, overlayPaint);
-    	canvas.drawRect(0, height - controlPadding, width, height, overlayStrokePaint);
+		for (int i = 0; i < matrix.length; i++)
+			for (int j = 0; j < matrix[i].length; j++) {
+				xTop = hPadding + j * blockSize;
+				yTop = vPadding + i * blockSize;
+				xBot = xTop + blockSize;
+				yBot = yTop + blockSize;
+				canvas.drawRect(xTop, yTop, xBot, yBot, overlayStrokePaint);
+			}
 	}
 
+	/**
+	 * Change direction only if it is not opposite to snake and next block is not a snake
+	 * It eliminates some stupid mistakes and errors
+	 * @param d - new direction
+ 	 */
+
     private void changeDirection(Direction d) {
-        if (this.snakeDir != d && d != snakeDir.getOpposite())
-            this.snakeDir = d;
+        if (this.snakeDir != d && d != snakeDir.getOpposite()) {
+			final SnakeSegment head = snakeSegments.getLast();
+
+			int nextX = head.getX() + (d == Direction.LEFT ? -1 : 0) + (d == Direction.RIGHT ? 1 : 0);
+			int nextY = head.getY() + (d == Direction.UP ? -1 : 0) + (d == Direction.DOWN ? 1 : 0);
+
+			if(whatsAhead(nextX, nextY) == MapEntity.SNAKE)
+				return;
+			this.snakeDir = d;
+		}
     }
 
 	@Override
@@ -436,6 +440,10 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 		isDrawing = true;
 	}
 
+	public boolean isPlaying() {
+		return isPlaying;
+	}
+
 	public void pauseGame() {
 		isPlaying = false;
 	}
@@ -459,6 +467,8 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 	private float mI[] = new float[9];
 	private float orientation[] = new float[3];
 
+
+	// Some of the code below copied somewhere from developer.android.com
 	@Override
 	public void onSensorChanged(SensorEvent event) {
 		double pitch;
@@ -480,7 +490,7 @@ public class SnakeView extends SurfaceView implements Runnable, SurfaceHolder.Ca
 					changeDirection(Direction.RIGHT);
 				else if (roll < -10 && roll > -45)
 					changeDirection(Direction.LEFT);
-				if (pitch > 15 && pitch < 45)
+				if (pitch > 12.5 && pitch < 45)
 					changeDirection(Direction.UP);
 				else if (pitch < -15 && pitch > -45)
 					changeDirection(Direction.DOWN);

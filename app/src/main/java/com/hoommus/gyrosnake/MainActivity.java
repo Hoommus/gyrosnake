@@ -5,12 +5,11 @@ import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.Message;
-import android.os.VibrationEffect;
 import android.os.Vibrator;
-import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -19,7 +18,7 @@ import android.widget.Toast;
  * status bar and navigation/system bar) with user interaction.
  */
 public class MainActivity extends AppCompatActivity {
-    private View mControlsView;
+    private ImageButton controlButton;
 	private SensorManager sensorManager;
     private SnakeView surfaceView;
     private static Handler handler;
@@ -56,7 +55,19 @@ public class MainActivity extends AppCompatActivity {
 		surfaceView.setMainUiHandler(handler);
 		sensorManager.registerListener(surfaceView, accelerometer, SensorManager.SENSOR_DELAY_UI);
 		sensorManager.registerListener(surfaceView, sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD), SensorManager.SENSOR_DELAY_GAME);
-        mControlsView = findViewById(R.id.fullscreen_content_controls);
+		surfaceView.pauseGame();
+		new GameInstructionsDialogFragment().show(getSupportFragmentManager(), "tutorial");
+        controlButton = findViewById(R.id.control_button);
+		controlButton.setOnClickListener(v -> {
+			if (surfaceView.isPlaying()) {
+				Toast.makeText(getApplicationContext(), "Game paused.", Toast.LENGTH_LONG).show();
+				controlButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_pause));
+				surfaceView.pauseGame();
+			} else {
+				controlButton.setImageDrawable(getResources().getDrawable(R.drawable.ic_play));
+				surfaceView.resumeGame();
+			}
+		});
     }
 
 	private void buildGameOverDialog(int score) {
