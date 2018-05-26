@@ -11,7 +11,7 @@ public class GameInstructionsDialogFragment extends DialogFragment {
 	@Override
 	public Dialog onCreateDialog(Bundle savedInstanceState) {
 		AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
-		builder.setMessage("Hold phone parallel to the ground and use it's gyroscope to control the snake.\n" +
+		builder.setMessage("Hold phone parallel to the ground and use it's gyroscope to control the snake.\n\n" +
 				"Rotate along longer side of the phone to move the snake left or right\n" +
 				"Rotate across it to move the snake upwards or downwards")
 				.setPositiveButton("Got it", (dialog, which) -> {

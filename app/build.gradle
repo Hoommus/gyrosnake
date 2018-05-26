@@ -1,7 +1,15 @@
 apply plugin: 'com.android.application'
 
 android {
-    compileSdkVersion 'android-P'
+    signingConfigs {
+        config {
+            keyAlias 'GyroSnake'
+            keyPassword '1248163264128'
+            storeFile file('/home/hoommus/keystores')
+            storePassword '32168421'
+        }
+    }
+    compileSdkVersion 27
     defaultConfig {
         applicationId "com.hoommus.gyrosnake"
         minSdkVersion 21
